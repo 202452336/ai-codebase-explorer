@@ -1,0 +1,32 @@
+cat > .gitignore << 'EOF'
+# Dependencies
+node_modules/
+
+# Environment variables (NEVER commit these)
+.env
+backend/.env
+frontend/.env
+
+# Firebase service account (NEVER commit this)
+firebase-service-account.json
+
+# Build output
+frontend/dist/
+backend/dist/
+
+# Cloned repos (temp files)
+/tmp/ai-explorer-repos/
+repos/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+
+# IDE
+.vscode/
+.idea/
+EOF
