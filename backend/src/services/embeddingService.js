@@ -1,16 +1,11 @@
-import { pipeline } from '@xenova/transformers';
+import fetch from 'node-fetch';
 import pool from '../config/db.js';
 import dotenv from 'dotenv';
 dotenv.config();
 
-let _extractor = null;
-const getExtractor = async() => {
-    if (!_extractor) {
-        console.log('Loading embedding model (first time only)...');
-        _extractor = await pipeline('feature-extraction', 'Xenova/multilingual-e5-large');
-    }
-    return _extractor;
-};
+// Nomic embed-text-v1.5 — free, no card, 768-dim
+const NOMIC_API_KEY = process.env.NOMIC_API_KEY;
+const NOMIC_MODEL = 'nomic-embed-text-v1.5';
 
 const chunkText = (text, chunkSize = 800, overlap = 100) => {
     const lines = text.split('\n');
@@ -36,132 +31,129 @@ const chunkText = (text, chunkSize = 800, overlap = 100) => {
     return chunks.filter(c => c.trim().length > 20);
 };
 
-const generateEmbeddings = async(texts) => {
-    const extractor = await getExtractor();
-    const results = await extractor(texts, { pooling: 'mean', normalize: true });
-    // Convert tensor to proper array format
-    if (results.tolist) {
-        return results.tolist();
-    } else if (results.data) {
-        // Handle typed array
-        const arrays = [];
-        const itemSize = results.length > 0 ? results[0].length : 0;
-        for (let i = 0; i < results.length; i++) {
-            arrays.push(Array.from(results[i]));
-        }
-        return arrays;
+const sleep = (ms) => new Promise(r => setTimeout(r, ms));
+
+// Nomic supports batches of 100, no strict rate limit on free tier
+const generateEmbeddings = async(texts, taskType = 'search_document') => {
+    // Nomic requires task prefix in the text
+    const prefixedTexts = texts.map(t =>
+        taskType === 'search_query' ? `search_query: ${t}` : `search_document: ${t}`
+    );
+
+    const res = await fetch('https://api-atlas.nomic.ai/v1/embedding/text', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${NOMIC_API_KEY}`
+        },
+        body: JSON.stringify({
+            model: NOMIC_MODEL,
+            texts: prefixedTexts,
+            task_type: taskType,
+            dimensionality: 768,
+        })
+    });
+
+    if (!res.ok) {
+        const err = await res.text();
+        throw new Error(`Nomic API error ${res.status}: ${err}`);
     }
-    return Array.isArray(results) ? results : [Array.from(results)];
+
+    const data = await res.json();
+    return data.embeddings;
 };
 
 export const embedRepoFiles = async(repoId, files) => {
-    console.log(`Starting embedding for ${files.length} files in repo ${repoId}...`);
-    let processed = 0;
+    console.log(`Starting embedding for ${files.length} files (nomic-embed-text-v1.5)...`);
+
+    // Step 1: Get all file IDs in one query
+    const pathsResult = await pool.query(
+        `SELECT id, path FROM files WHERE repo_id = $1`, [repoId]
+    );
+    const pathToId = {};
+    for (const row of pathsResult.rows) pathToId[row.path] = row.id;
+
+    // Step 2: Build all chunks
+    const allChunks = [];
     for (const file of files) {
-        try {
-            if (!file.content || file.content.trim().length < 30) continue;
-            const fileResult = await pool.query(
-                `SELECT id FROM files WHERE repo_id = $1 AND path = $2`, [repoId, file.path]
-            );
-            if (fileResult.rows.length === 0) continue;
-            const fileId = fileResult.rows[0].id;
-            const chunks = chunkText(file.content);
-            if (chunks.length === 0) continue;
-            const chunkTexts = chunks.map(c => `File: ${file.path}\n\n${c}`);
-            const batchSize = 90;
-            for (let b = 0; b < chunkTexts.length; b += batchSize) {
-                const batch = chunkTexts.slice(b, b + batchSize);
-                const embeddings = await generateEmbeddings(batch);
-                for (let i = 0; i < batch.length; i++) {
-                    await pool.query(
-                        `INSERT INTO embeddings (repo_id, file_id, chunk_text, chunk_index, embedding)
-                         VALUES ($1, $2, $3, $4, $5)`, [repoId, fileId, batch[i], b + i, JSON.stringify(embeddings[i])]
-                    );
-                }
-                await new Promise(r => setTimeout(r, 100));
-            }
-            processed++;
-            if (processed % 10 === 0) console.log(`  Embedded ${processed}/${files.length} files...`);
-        } catch (err) {
-            console.error(`  Failed to embed ${file.path}:`, err.message);
-        }
+        if (!file.content || file.content.trim().length < 30) continue;
+        const fileId = pathToId[file.path];
+        if (!fileId) continue;
+        const chunks = chunkText(file.content);
+        chunks.forEach((chunk, i) => {
+            allChunks.push({
+                fileId,
+                path: file.path,
+                chunkText: `File: ${file.path}\n\n${chunk}`,
+                chunkIndex: i
+            });
+        });
     }
-    console.log(`Embedding complete. Processed: ${processed}`);
-    return { processed };
+
+    if (allChunks.length === 0) {
+        console.log('No chunks to embed.');
+        return { processed: 0 };
+    }
+
+    console.log(`Total chunks: ${allChunks.length}`);
+
+    // Step 3: Embed in batches of 100
+    const BATCH = 100;
+    const allEmbeddings = [];
+
+    for (let i = 0; i < allChunks.length; i += BATCH) {
+        const batch = allChunks.slice(i, i + BATCH).map(c => c.chunkText);
+        const embeddings = await generateEmbeddings(batch, 'search_document');
+        allEmbeddings.push(...embeddings);
+        const done = Math.min(i + BATCH, allChunks.length);
+        console.log(`  [${done}/${allChunks.length}] chunks embedded...`);
+        if (done < allChunks.length) await sleep(300);
+    }
+
+    // Step 4: Bulk insert
+    const values = [];
+    const params = [];
+    let p = 1;
+    for (let i = 0; i < allChunks.length; i++) {
+        values.push(`($${p++}, $${p++}, $${p++}, $${p++}, $${p++})`);
+        params.push(
+            repoId,
+            allChunks[i].fileId,
+            allChunks[i].chunkText,
+            allChunks[i].chunkIndex,
+            JSON.stringify(allEmbeddings[i])
+        );
+    }
+
+    await pool.query(
+        `INSERT INTO embeddings (repo_id, file_id, chunk_text, chunk_index, embedding)
+         VALUES ${values.join(', ')}`,
+        params
+    );
+
+    console.log(`✅ Embedding complete. Inserted ${allChunks.length} chunks.`);
+    return { processed: files.length, chunks: allChunks.length };
 };
 
 export const semanticSearch = async(repoId, query, topK = 6) => {
     try {
-        const qEmbeddings = await generateEmbeddings([query]);
-        const queryEmbedding = qEmbeddings[0];
-
-        if (!queryEmbedding || !Array.isArray(queryEmbedding)) {
-            console.error('Query embedding is invalid:', queryEmbedding);
-            return [];
-        }
-
-        // Get all embeddings for this repo
+        const embeddings = await generateEmbeddings([query], 'search_query');
         const result = await pool.query(
-            `SELECT e.id, e.chunk_text, e.chunk_index, e.embedding, f.path AS file_path, f.language
+            `SELECT e.chunk_text, e.chunk_index, f.path AS file_path, f.language,
+                    1 - (e.embedding <=> $1::vector) AS similarity
              FROM embeddings e
              JOIN files f ON e.file_id = f.id
-             WHERE e.repo_id = $1
-             LIMIT 500`, [repoId]
+             WHERE e.repo_id = $2
+             ORDER BY e.embedding <=> $1::vector
+             LIMIT $3`, [JSON.stringify(embeddings[0]), repoId, topK]
         );
-
-        if (result.rows.length === 0) {
-            console.log('No embeddings found in database for repo:', repoId);
-            return [];
-        }
-
-        // Calculate cosine similarity
-        const cosineSimilarity = (a, b) => {
-            let dotProduct = 0;
-            let normA = 0;
-            let normB = 0;
-            for (let i = 0; i < a.length; i++) {
-                dotProduct += a[i] * b[i];
-                normA += a[i] * a[i];
-                normB += b[i] * b[i];
-            }
-            return dotProduct / (Math.sqrt(normA) * Math.sqrt(normB));
-        };
-
-        // Calculate similarities
-        const scored = result.rows
-            .map(row => {
-                try {
-                    const embedding = typeof row.embedding === 'string' ?
-                        JSON.parse(row.embedding) :
-                        row.embedding;
-
-                    if (!Array.isArray(embedding)) {
-                        console.warn('Invalid embedding format:', row.id);
-                        return null;
-                    }
-
-                    const similarity = cosineSimilarity(queryEmbedding, embedding);
-                    return {
-                        ...row,
-                        similarity: Math.max(0, similarity) // Clamp to 0-1 range
-                    };
-                } catch (err) {
-                    console.error('Error processing embedding:', err.message);
-                    return null;
-                }
-            })
-            .filter(r => r !== null)
-            .sort((a, b) => b.similarity - a.similarity)
-            .slice(0, topK)
-            .map(row => ({
-                filePath: row.file_path,
-                language: row.language,
-                chunkText: row.chunk_text,
-                chunkIndex: row.chunk_index,
-                similarity: row.similarity.toFixed(3)
-            }));
-
-        return scored;
+        return result.rows.map(row => ({
+            filePath: row.file_path,
+            language: row.language,
+            chunkText: row.chunk_text,
+            chunkIndex: row.chunk_index,
+            similarity: parseFloat(row.similarity).toFixed(3)
+        }));
     } catch (err) {
         console.error('semanticSearch error:', err.message);
         throw err;
