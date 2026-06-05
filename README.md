@@ -9,7 +9,7 @@
 [![Express](https://img.shields.io/badge/Express-5-000000?style=for-the-badge&logo=express&logoColor=white)](https://expressjs.com)
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-pgvector-4169E1?style=for-the-badge&logo=postgresql&logoColor=white)](https://postgresql.org)
 [![Firebase](https://img.shields.io/badge/Firebase-Auth-FFCA28?style=for-the-badge&logo=firebase&logoColor=black)](https://firebase.google.com)
-[![Voyage AI](https://img.shields.io/badge/Voyage_AI-Embeddings-7C6AFF?style=for-the-badge)](https://voyageai.com)
+[![Nomic AI](https://img.shields.io/badge/Nomic_AI-Embeddings-7C6AFF?style=for-the-badge)](https://nomic.ai)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green?style=for-the-badge)](LICENSE)
 
 <br />
@@ -517,6 +517,6 @@ Built by **Thuppathi Nikitha**
 
 **If this project helped you, give it a ⭐ — it means a lot!**
 
-*Built with ❤️ using React, Node.js, Groq, Voyage AI, and PostgreSQL*
+*Built with ❤️ using React, Node.js, Groq, Nomic AI, and PostgreSQL*
 
 </div>
