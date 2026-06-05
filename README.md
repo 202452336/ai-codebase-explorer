@@ -16,7 +16,6 @@
 
 **Paste any GitHub URL → AI clones, reads every file, maps architecture, and lets you explore with natural language.**
 
-[🚀 Live Demo](#) · [📖 Documentation](#installation) · [🐛 Report Bug](https://github.com/202452336/ai-codebase-explorer/issues) · [✨ Request Feature](https://github.com/202452336/ai-codebase-explorer/issues)
 
 <br />
 
