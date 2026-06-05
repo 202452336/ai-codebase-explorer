@@ -511,10 +511,6 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 
 Built by **Thuppathi Nikitha**
 
-[![GitHub](https://img.shields.io/badge/GitHub-202452336-181717?style=for-the-badge&logo=github)](https://github.com/202452336)
-[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin)](https://linkedin.com/in/your-profile)
-[![Portfolio](https://img.shields.io/badge/Portfolio-Visit-7C6AFF?style=for-the-badge)](https://your-portfolio.com)
-
 ---
 
 <div align="center">
