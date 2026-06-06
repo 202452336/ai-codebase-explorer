@@ -6,7 +6,9 @@ import {
     chatWithRepoAI,
     generateReadmeWithAI,
     generateArchitectureWithAI,
-    generateRepoSummaryWithAI
+    generateRepoSummaryWithAI,
+    generateInsightsWithAI,
+    runPromptArchaeology
 } from '../services/aiService.js';
 
 // ── POST /api/repos/clone ──────────────────────────────────────────────────
@@ -66,10 +68,18 @@ const processRepo = async(repoId, githubUrl) => {
         const files = readRepositoryFiles(repoPath);
         const techStack = detectTechStack(files);
 
-        // STEP 3 — Save files to DB
-        for (const file of files) {
+        // STEP 3 — Save files to DB (bulk insert)
+        if (files.length > 0) {
+            const values = [];
+            const params = [];
+            let p = 1;
+            for (const file of files) {
+                values.push(`($${p++}, $${p++}, $${p++}, $${p++})`);
+                params.push(repoId, file.path, file.content, file.language);
+            }
             await pool.query(
-                `INSERT INTO files (repo_id, path, content, language) VALUES ($1, $2, $3, $4)`, [repoId, file.path, file.content, file.language]
+                `INSERT INTO files (repo_id, path, content, language) VALUES ${values.join(', ')}`,
+                params
             );
         }
 
@@ -91,10 +101,15 @@ const processRepo = async(repoId, githubUrl) => {
             `UPDATE repos SET tech_stack = $1, summary = $2, architecture = $3 WHERE id = $4`, [JSON.stringify(techStack), summary, architectureText, repoId]
         );
 
-        // STEP 5 — Generate embeddings
-        await setStatus(repoId, 'embedding');
-        console.log(`[${repoId}] Generating embeddings for ${files.length} files...`);
-        await embedRepoFiles(repoId, files);
+        // STEP 5 — Generate embeddings (optional — skip if it fails)
+        try {
+            await setStatus(repoId, 'embedding');
+            console.log(`[${repoId}] Generating embeddings for ${files.length} files...`);
+            await embedRepoFiles(repoId, files);
+            console.log(`[${repoId}] Embeddings done.`);
+        } catch (embedErr) {
+            console.warn(`[${repoId}] Embedding skipped (will use text search fallback): ${embedErr.message}`);
+        }
 
         // STEP 6 — Done!
         await setStatus(repoId, 'ready');
@@ -232,21 +247,65 @@ export const searchRepo = async(req, res) => {
             });
         }
 
-        const results = await semanticSearch(repoId, query, Math.min(topK, 10));
+        // Try vector search first
+        let rawResults = [];
+        try {
+            rawResults = await semanticSearch(repoId, query, Math.min(topK, 10));
+        } catch (searchErr) {
+            console.warn('Vector search failed, using text search:', searchErr.message);
+        }
+
+        // Fallback: PostgreSQL full-text search
+        if (rawResults.length === 0) {
+            console.log('No vector results — falling back to full-text search...');
+            const ftResult = await pool.query(
+                `SELECT f.path AS file_path, f.language,
+                        f.content AS chunk_text, 0 AS chunk_index,
+                        ts_rank(to_tsvector('english', COALESCE(f.content, '')), plainto_tsquery('english', $1)) AS similarity
+                 FROM files f
+                 WHERE f.repo_id = $2
+                   AND to_tsvector('english', COALESCE(f.content, '')) @@ plainto_tsquery('english', $1)
+                 ORDER BY similarity DESC
+                 LIMIT $3`, [query, repoId, Math.min(topK, 10)]
+            );
+
+            // Last resort: keyword ILIKE search
+            if (ftResult.rows.length === 0) {
+                const keywords = query.split(' ').filter(w => w.length > 3);
+                const likeClause = keywords.map((_, i) => `f.content ILIKE $${i + 3}`).join(' OR ');
+                const likeParams = keywords.map(w => `%${w}%`);
+
+                if (keywords.length > 0) {
+                    const likeResult = await pool.query(
+                        `SELECT f.path AS file_path, f.language,
+                                SUBSTRING(f.content, 1, 800) AS chunk_text,
+                                0 AS chunk_index, 0.1 AS similarity
+                         FROM files f
+                         WHERE f.repo_id = $1 AND f.content IS NOT NULL
+                           AND (${likeClause})
+                         LIMIT $2`, [repoId, Math.min(topK, 10), ...likeParams]
+                    );
+                    rawResults = likeResult.rows;
+                }
+            } else {
+                rawResults = ftResult.rows;
+            }
+        }
 
         // Group results by file
         const byFile = {};
-        for (const r of results) {
-            if (!byFile[r.filePath]) {
-                byFile[r.filePath] = {
-                    filePath: r.filePath,
+        for (const r of rawResults) {
+            const key = r.filePath || r.file_path;
+            if (!byFile[key]) {
+                byFile[key] = {
+                    filePath: key,
                     language: r.language,
                     similarity: r.similarity,
                     chunks: []
                 };
             }
-            byFile[r.filePath].chunks.push({
-                text: r.chunkText,
+            byFile[key].chunks.push({
+                text: r.chunkText || r.chunk_text,
                 similarity: r.similarity
             });
         }
@@ -254,7 +313,7 @@ export const searchRepo = async(req, res) => {
         res.json({
             query,
             results: Object.values(byFile),
-            totalChunks: results.length
+            totalChunks: rawResults.length
         });
 
     } catch (err) {
@@ -293,13 +352,45 @@ export const chatWithRepo = async(req, res) => {
         const techStack = repo.tech_stack || [];
 
         // Semantic search to find relevant code context
-        const contextChunks = await semanticSearch(repoId, message, 6);
+        let contextChunks = [];
+        try {
+            contextChunks = await semanticSearch(repoId, message, 6);
+        } catch (searchErr) {
+            console.warn('Semantic search failed, using text search fallback:', searchErr.message);
+        }
 
+        // Fallback: PostgreSQL full-text search if no vector results
         if (contextChunks.length === 0) {
-            return res.json({
-                answer: "I couldn't find relevant code in this repository to answer your question. Try rephrasing or asking about a specific file or function.",
-                sources: []
-            });
+            console.log('No vector results — using full-text search fallback...');
+            const ftResult = await pool.query(
+                `SELECT f.path AS file_path, f.language, f.content AS chunk_text, 0 AS chunk_index,
+                        ts_rank(to_tsvector('english', COALESCE(f.content, '')), plainto_tsquery('english', $1)) AS similarity
+                 FROM files f
+                 WHERE f.repo_id = $2
+                   AND to_tsvector('english', COALESCE(f.content, '')) @@ plainto_tsquery('english', $1)
+                 ORDER BY similarity DESC
+                 LIMIT 6`, [message, repoId]
+            );
+
+            // If text search also finds nothing, just grab the most important files
+            if (ftResult.rows.length === 0) {
+                const fallback = await pool.query(
+                    `SELECT path AS file_path, language, content AS chunk_text, 0 AS chunk_index
+                     FROM files WHERE repo_id = $1
+                     ORDER BY CASE
+                         WHEN path ILIKE '%index%'   THEN 1
+                         WHEN path ILIKE '%app%'     THEN 2
+                         WHEN path ILIKE '%server%'  THEN 3
+                         WHEN path ILIKE '%main%'    THEN 4
+                         WHEN path ILIKE '%route%'   THEN 5
+                         WHEN path ILIKE '%readme%'  THEN 6
+                         ELSE 7
+                     END LIMIT 6`, [repoId]
+                );
+                contextChunks = fallback.rows;
+            } else {
+                contextChunks = ftResult.rows;
+            }
         }
 
         // Generate AI answer
@@ -374,6 +465,97 @@ export const getArchitecture = async(req, res) => {
         }
         res.json(result.rows[0]);
     } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// ── GET /api/repos/:repoId/insights ──────────────────────────────────────
+export const getInsights = async(req, res) => {
+    const { repoId } = req.params;
+    try {
+        const repoResult = await pool.query(
+            `SELECT r.name, r.tech_stack, r.insights
+             FROM repos r WHERE r.id = $1`, [repoId]
+        );
+        if (repoResult.rows.length === 0) {
+            return res.status(404).json({ error: 'Repo not found' });
+        }
+
+        const repo = repoResult.rows[0];
+
+        // Return cached insights if available
+        if (repo.insights) {
+            try {
+                const parsed = typeof repo.insights === 'string' ?
+                    JSON.parse(repo.insights) :
+                    repo.insights; // pg already parses JSONB columns
+                return res.json(parsed);
+            } catch (e) {
+                console.warn('Cached insights invalid, regenerating...');
+                await pool.query(`UPDATE repos SET insights = NULL WHERE id = $1`, [repoId]);
+            }
+        }
+
+        // Generate fresh insights
+        const filesResult = await pool.query(
+            `SELECT path, content, language FROM files WHERE repo_id = $1`, [repoId]
+        );
+
+        const techStack = Array.isArray(repo.tech_stack) ?
+            repo.tech_stack :
+            JSON.parse(repo.tech_stack || '[]');
+
+        const insights = await generateInsightsWithAI(repo.name, techStack, filesResult.rows);
+
+        // Cache in DB (store as JSONB — pg handles serialization)
+        await pool.query(
+            `UPDATE repos SET insights = $1::jsonb WHERE id = $2`, [JSON.stringify(insights), repoId]
+        );
+
+        res.json(insights);
+    } catch (err) {
+        console.error('getInsights error:', err);
+        res.status(500).json({ error: err.message });
+    }
+};
+
+// ── GET /api/repos/:repoId/archaeology ───────────────────────────────────────
+export const getArchaeology = async(req, res) => {
+    const { repoId } = req.params;
+    try {
+        const repoResult = await pool.query(
+            `SELECT r.name, r.tech_stack, r.architecture, r.archaeology
+             FROM repos r WHERE r.id = $1`, [repoId]
+        );
+        if (repoResult.rows.length === 0) return res.status(404).json({ error: 'Repo not found' });
+
+        const repo = repoResult.rows[0];
+
+        // Return cached result if available
+        if (repo.archaeology) {
+            return res.json({ report: repo.archaeology });
+        }
+
+        const filesResult = await pool.query(
+            `SELECT path, content, language FROM files WHERE repo_id = $1`, [repoId]
+        );
+
+        const techStack = Array.isArray(repo.tech_stack) ?
+            repo.tech_stack : JSON.parse(repo.tech_stack || '[]');
+
+        console.log(`[${repoId}] Running Prompt Archaeology Engine...`);
+        const report = await runPromptArchaeology(
+            repo.name, techStack, filesResult.rows, repo.architecture
+        );
+
+        // Cache it
+        await pool.query(
+            `UPDATE repos SET archaeology = $1 WHERE id = $2`, [report, repoId]
+        );
+
+        res.json({ report });
+    } catch (err) {
+        console.error('getArchaeology error:', err);
         res.status(500).json({ error: err.message });
     }
 };

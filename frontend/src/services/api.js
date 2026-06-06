@@ -31,4 +31,6 @@ export const api = {
     getArchitecture: (id) => req('GET', `/repos/${id}/architecture`),
     // Maps to architecture endpoint (same data, different page use)
     getAnalysis: (id) => req('GET', `/repos/${id}/architecture`),
+    getInsights: (id) => req('GET', `/repos/${id}/insights`),
+    getArchaeology: (id) => req('GET', `/repos/${id}/archaeology`),
 };

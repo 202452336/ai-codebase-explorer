@@ -27,7 +27,7 @@ const chat = async(systemPrompt, userPrompt, maxTokens = 2000) => {
 // ── 1. EXPLAIN FILE ────────────────────────────────────────────────────────
 export const explainFileWithAI = async(filePath, fileContent, language) => {
     const text = await chat(
-        `You are a senior software engineer doing a thorough code review.
+        `You are a senior software engineer doing a thorough code review. 
 You explain code clearly, specifically, and technically.
 Always respond with valid JSON only — no markdown, no backticks, no preamble.`,
 
@@ -36,7 +36,6 @@ Always respond with valid JSON only — no markdown, no backticks, no preamble.`
 {
   "purpose": "One precise sentence: what does this file DO and WHY does it exist in this project?",
   "summary": "3-4 sentences covering: what problem it solves, how it fits in the architecture, key design decisions made",
-  "architectureRole": "How this file fits into the overall system — which layer it belongs to and what depends on it",
   "functions": [
     {
       "name": "exact function/method name",
@@ -51,19 +50,12 @@ Always respond with valid JSON only — no markdown, no backticks, no preamble.`
       "purpose": "why this dependency is used here"
     }
   ],
-  "imports": ["list of imported modules/files"],
-  "exports": ["list of exported functions/classes/constants"],
   "flow": "Step-by-step walkthrough of the main execution flow, referencing actual function names",
-  "security": "Any security-relevant logic found: auth checks, input validation, JWT, encryption, etc. Say 'None detected' if absent.",
   "keyPoints": [
     "Specific technical insight about this file",
     "Any patterns used (e.g. middleware pattern, factory pattern)",
     "Potential issues or things to watch out for",
     "Performance considerations if any"
-  ],
-  "relatedFiles": ["files this likely connects to based on imports/exports/naming"],
-  "improvementSuggestions": [
-    "Specific actionable improvement suggestion"
   ],
   "codeQuality": {
     "score": 8,
@@ -173,11 +165,6 @@ export const generateReadmeWithAI = async(repoName, techStack, files, architectu
 
     const projectShortName = repoName.split('/')[1] || repoName;
 
-    // Include architecture overview if available
-    const archContext = architecture ?
-        `\nArchitecture analysis:\n${typeof architecture === 'string' ? architecture : JSON.stringify(architecture, null, 2)}\n` :
-        '';
-
     return await chat(
         `You are a senior developer writing a world-class GitHub README that will impress hiring managers and other developers.
 Rules:
@@ -191,7 +178,7 @@ Rules:
 
 Project: ${repoName}
 Tech Stack: ${techStack.join(', ') || 'unknown'}
-${archContext}
+
 File structure:
 ${fileTree}
 
@@ -354,14 +341,7 @@ CRITICAL: Every single section must contain REAL, SPECIFIC content from the actu
 export const generateArchitectureWithAI = async(repoName, techStack, files) => {
     const fileTree = files.map(f => f.path).slice(0, 80).join('\n');
     const packageFile = files.find(f => f.path === 'package.json');
-    const packageContent = (packageFile && packageFile.content) ? packageFile.content.slice(0, 1500) : '';
-
-    // Feed key source files for better analysis
-    const keyFiles = files
-        .filter(f => f.path.match(/index|main|app|server|router|route|controller|middleware|model/i))
-        .slice(0, 5)
-        .map(f => `// ${f.path}\n${(f.content || '').slice(0, 600)}`)
-        .join('\n\n');
+    const packageContent = packageFile && packageFile.content ? packageFile.content.slice(0, 1000) : '';
 
     const text = await chat(
         `You are a software architect. Analyze codebases and identify architecture patterns, layers, and data flows.
@@ -394,10 +374,7 @@ Tech Stack: ${techStack.join(', ')}
 package.json: ${packageContent}
 
 File tree:
-${fileTree}
-
-Key source files:
-${keyFiles}`,
+${fileTree}`,
         2500
     );
 
@@ -437,25 +414,433 @@ ${sample}`,
     );
 };
 
-// ── 6. EMBEDDINGS (Local - @xenova/transformers) ───────────────────────────
-import { pipeline } from '@xenova/transformers';
+// ── 6. EMBEDDINGS (Cohere) ─────────────────────────────────────────────────
+import { CohereClient } from 'cohere-ai';
 
-let _extractor = null;
-const getExtractor = async() => {
-    if (!_extractor) {
-        console.log('Loading embedding model (first time only)...');
-        _extractor = await pipeline('feature-extraction', 'Xenova/multilingual-e5-large');
+let _cohere = null;
+const getCohere = () => {
+    if (!_cohere) {
+        if (!process.env.COHERE_API_KEY) throw new Error('COHERE_API_KEY is not set in .env');
+        _cohere = new CohereClient({ token: process.env.COHERE_API_KEY });
     }
-    return _extractor;
+    return _cohere;
 };
 
 export const generateEmbedding = async(text) => {
-    const extractor = await getExtractor();
-    const result = await extractor(text, { pooling: 'mean', normalize: true });
-    if (result.tolist) {
-        const list = result.tolist();
-        return Array.isArray(list[0]) ? list[0] : list;
+    const response = await getCohere().embed({
+        texts: [text],
+        model: 'embed-english-v3.0',
+        inputType: 'search_query',
+        embeddingTypes: ['float']
+    });
+    return response.embeddings.float[0];
+};
+// ── 7. REAL CODE QUALITY SCORES ────────────────────────────────────────────
+export const generateInsightsWithAI = async(repoName, techStack, files) => {
+    // Build a rich sample: pick key files across different types
+    const keyFiles = files
+        .filter(f => f.content && f.content.trim().length > 50)
+        .sort((a, b) => {
+            const priority = (p) => {
+                if (p.match(/middleware|auth|security|guard/i)) return 0;
+                if (p.match(/route|controller|handler/i)) return 1;
+                if (p.match(/model|schema|entity/i)) return 2;
+                if (p.match(/service|util|helper/i)) return 3;
+                if (p.match(/index|app|server|main/i)) return 4;
+                return 5;
+            };
+            return priority(a.path) - priority(b.path);
+        })
+        .slice(0, 12);
+
+    const filesSample = keyFiles
+        .map(f => `// ${f.path}\n${f.content.slice(0, 600)}`)
+        .join('\n\n---\n\n');
+
+    const filePaths = files.map(f => f.path).join('\n');
+
+    const text = await chat(
+        `You are a senior software engineer performing a real code quality audit.
+Analyze the provided code carefully and return ONLY valid JSON — no markdown, no backticks, no explanation.
+Base your scores on ACTUAL evidence found in the code, not assumptions.`,
+
+        `Analyze this codebase and return a JSON object with REAL scores based on what you actually see in the code.
+
+Project: ${repoName}
+Tech Stack: ${techStack.join(', ')}
+Total files: ${files.length}
+
+File structure:
+${filePaths.slice(0, 2000)}
+
+Key source files:
+${filesSample}
+
+Return this exact JSON structure:
+
+{
+  "scores": {
+    "security": <integer 0-100>,
+    "maintainability": <integer 0-100>,
+    "architecture": <integer 0-100>,
+    "health": <integer 0-100>
+  },
+  "scoreReasons": {
+    "security": "1-2 sentences explaining exactly why this security score was given, referencing specific files or patterns",
+    "maintainability": "1-2 sentences explaining exactly why this maintainability score was given",
+    "architecture": "1-2 sentences explaining exactly why this architecture score was given",
+    "health": "1-2 sentences explaining exactly why this health score was given"
+  },
+  "strengths": [
+    "Specific strength referencing actual code or file found",
+    "Another specific strength",
+    "Another specific strength"
+  ],
+  "risks": [
+    "Specific risk or issue found in the actual code",
+    "Another specific risk"
+  ],
+  "recommendations": [
+    "Specific actionable recommendation based on actual code",
+    "Another specific recommendation",
+    "Another specific recommendation"
+  ],
+  "codeSmells": [
+    "Specific code smell found (or 'None detected' if clean)"
+  ],
+  "securityFindings": [
+    "Specific security pattern found — e.g. JWT validation in middleware.js, bcrypt in user.model.js (or 'No issues found')"
+  ]
+}
+
+SCORING GUIDE — be strict and realistic:
+- Security (0-100): Check for: input validation, auth middleware, JWT handling, bcrypt/hashing, rate limiting, helmet/CORS, no hardcoded secrets, parameterized queries
+- Maintainability (0-100): Check for: file length (under 300 lines is good), function decomposition, clear naming, consistent patterns, separation of concerns, comments/JSDoc
+- Architecture (0-100): Check for: clear folder structure (routes/controllers/services/models), no god files, single responsibility, dependency injection patterns, no circular logic
+- Health (0-100): Average of other scores weighted: (security*0.3 + maintainability*0.3 + architecture*0.4)
+
+Be honest — a score of 60 means average, 80 means good, 90+ means excellent. Most real projects score 55-80.`,
+        2000
+    );
+
+    try {
+        const cleaned = text.replace(/^```json\n?/, '').replace(/\n?```$/, '').trim();
+        return JSON.parse(cleaned);
+    } catch {
+        // Fallback if JSON parse fails
+        return {
+            scores: { security: 65, maintainability: 68, architecture: 70, health: 68 },
+            scoreReasons: {
+                security: 'Could not analyze — default score applied.',
+                maintainability: 'Could not analyze — default score applied.',
+                architecture: 'Could not analyze — default score applied.',
+                health: 'Could not analyze — default score applied.'
+            },
+            strengths: ['Code structure appears organized'],
+            risks: ['Manual review recommended'],
+            recommendations: ['Add automated testing'],
+            codeSmells: ['None detected'],
+            securityFindings: ['Manual security audit recommended']
+        };
     }
-    const arr = Array.from(result);
-    return Array.isArray(arr[0]) ? arr[0] : arr;
+};
+
+// ── 8. PROMPT ARCHAEOLOGY ENGINE 🏺 ────────────────────────────────────────
+export const runPromptArchaeology = async(repoName, techStack, files, architecture) => {
+    const fileTree = files.map(f => f.path).slice(0, 120).join('\n');
+
+    const keyFiles = files
+        .filter(f => f.content && f.content.trim().length > 50)
+        .sort((a, b) => {
+            const rank = p =>
+                p.match(/package\.json|requirements\.txt|go\.mod/i) ? 0 :
+                p.match(/readme/i) ? 1 :
+                p.match(/index|app|server|main/i) ? 2 :
+                p.match(/route|controller|handler/i) ? 3 :
+                p.match(/model|schema|entity/i) ? 4 :
+                p.match(/service|util|helper/i) ? 5 : 6;
+            return rank(a.path) - rank(b.path);
+        })
+        .slice(0, 15)
+        .map(f => `### ${f.path}\n\`\`\`\n${f.content.slice(0, 800)}\n\`\`\``)
+        .join('\n\n');
+
+    const archContext = architecture ?
+        `\nArchitecture analysis:\n${typeof architecture === 'string' ? architecture.slice(0, 1000) : JSON.stringify(architecture).slice(0, 1000)}` :
+        '';
+
+    return await chat(
+        `You are an expert software architect and AI reverse-engineering specialist with 20 years of experience.
+Your job is to deeply analyze a codebase and reconstruct the original vision, blueprint, and prompts that likely guided its creation.
+You are a detective of software intent — reading between the lines of code to find the original human vision behind it.
+Output in rich, professional Markdown. Be specific, insightful, and authoritative.`,
+
+        `Analyze this repository and produce a complete **Prompt Archaeology Report**.
+
+# Repository Information
+**Project:** ${repoName}
+**Tech Stack:** ${techStack.join(', ')}
+${archContext}
+
+# File Structure
+\`\`\`
+${fileTree}
+\`\`\`
+
+# Key Source Files
+${keyFiles}
+
+---
+
+Produce the following report in this EXACT structure:
+
+---
+
+# 🏺 Prompt Archaeology Report
+## *${repoName}*
+
+> *This report reconstructs the most probable original vision, blueprint, and development prompts inferred from repository evidence. No claim is made that these are exact originals.*
+
+---
+
+## 🧠 1. Original Product Idea
+
+[2-3 paragraphs inferring the original idea behind this project. What was the developer trying to build? What inspired it? Reference specific code evidence.]
+
+---
+
+## 🎯 2. Problem Being Solved
+
+**Primary Problem:**
+[One sentence — the core problem]
+
+**Secondary Problems:**
+- [Specific problem inferred from code]
+- [Specific problem inferred from code]
+- [Specific problem inferred from code]
+
+**Evidence from repository:**
+[Point to specific files, patterns, or implementations that reveal the problem being solved]
+
+---
+
+## 👥 3. Target Users
+
+| User Type | Description | Evidence |
+|-----------|-------------|----------|
+| Primary   | [Who]       | [File/pattern that reveals this] |
+| Secondary | [Who]       | [File/pattern that reveals this] |
+
+---
+
+## ⭐ 4. Core Features (Reconstructed)
+
+[List ALL features inferred from the codebase, referencing actual files]
+
+| # | Feature | Evidence | Priority |
+|---|---------|----------|----------|
+| 1 | [Feature] | [File] | P0 |
+| 2 | [Feature] | [File] | P1 |
+...
+
+---
+
+## 📋 5. Reconstructed PRD (Product Requirements Document)
+
+### Overview
+[Brief product overview]
+
+### Goals
+- [Goal 1]
+- [Goal 2]
+
+### User Stories
+- As a [user], I want to [action] so that [benefit]
+[Generate 6-8 user stories based on actual implemented features]
+
+### Success Metrics
+[What metrics would this product optimize for, inferred from design decisions]
+
+---
+
+## 🏗️ 6. Development Phases (Reconstructed Timeline)
+
+### Phase 1 — MVP
+[What was likely built first, based on core files and architecture]
+Files: [specific files]
+
+### Phase 2 — Core Features
+[What was built next]
+Files: [specific files]
+
+### Phase 3 — Polish & Advanced Features
+[What was added later, based on complexity patterns]
+Files: [specific files]
+
+---
+
+## ⚙️ 7. Technical Architecture Rationale
+
+### Why this tech stack?
+[Explain WHY each technology was likely chosen, referencing specific usage patterns]
+
+| Technology | Why Chosen | Evidence |
+|------------|-----------|----------|
+| [Tech]     | [Reason]  | [File]   |
+
+### Architecture Pattern
+[Identify the architectural pattern: MVC, microservices, layered, etc. and explain WHY it was chosen]
+
+### Key Design Decisions
+- **[Decision]:** [Why this decision was likely made]
+- **[Decision]:** [Why this decision was likely made]
+
+---
+
+## 🗄️ 8. Database Design Rationale
+
+[Analyze the database schema/models and explain the design decisions]
+
+- Why these tables/collections?
+- Relationships inferred
+- Indexing decisions
+- Scaling considerations that influenced design
+
+---
+
+## 🔌 9. API Design Rationale
+
+[Analyze the API routes and explain the design philosophy]
+
+- REST vs GraphQL choice
+- Route naming conventions
+- Auth patterns
+- Response structure philosophy
+
+---
+
+## 🎨 10. Frontend Architecture Rationale
+
+[Analyze the frontend structure and explain decisions]
+
+- Component organization philosophy
+- State management approach
+- UI/UX decisions inferred from component names and structure
+
+---
+
+## 🗺️ 11. Probable Roadmap (MVP → Production)
+
+\`\`\`
+MVP (Week 1-2)
+→ [Features based on simplest/core files]
+
+v0.2 (Week 3-4)
+→ [Features based on moderate complexity additions]
+
+v0.5 (Month 2)
+→ [Features inferred from more complex patterns]
+
+v1.0 (Month 3)
+→ [Full production features]
+
+Future
+→ [Patterns suggesting planned but not implemented features]
+\`\`\`
+
+---
+
+## 📄 12. System Design Summary
+
+\`\`\`
+[ASCII diagram of the system architecture inferred from code]
+\`\`\`
+
+---
+
+## 🔨 13. Step-by-Step Build Plan
+
+If someone wanted to rebuild this from scratch:
+
+1. **Step 1:** [Setup — based on project configuration files]
+2. **Step 2:** [Core foundation — based on entry point files]
+3. **Step 3:** [Data layer — based on models/schema files]
+4. **Step 4:** [Business logic — based on service files]
+5. **Step 5:** [API layer — based on route/controller files]
+6. **Step 6:** [Frontend — based on component structure]
+7. **Step 7:** [AI integration — based on AI service files]
+8. **Step 8:** [Testing and polish — based on test files or lack thereof]
+
+---
+
+## 🤖 14. Reconstructed AI Prompts
+
+*The following prompts are the most probable prompts the developer may have used when building this project. These are inferences based on code evidence, not exact reproductions.*
+
+---
+
+### 🏆 Prompt #1 — Most Probable (Initial Architecture Prompt)
+
+**Confidence Score:** [X/10]
+
+**Reconstructed Prompt:**
+\`\`\`
+[Write the most probable initial prompt the developer used — 100-200 words]
+\`\`\`
+
+**Supporting Evidence:**
+- [Specific file or pattern that supports this inference]
+- [Another piece of evidence]
+
+**Missing Assumptions:**
+- [What we cannot know for certain]
+- [Another uncertainty]
+
+---
+
+### 🥈 Prompt #2 — Probable (Feature Implementation Prompt)
+
+**Confidence Score:** [X/10]
+
+**Reconstructed Prompt:**
+\`\`\`
+[Write a probable prompt for a specific feature — 100-200 words]
+\`\`\`
+
+**Supporting Evidence:**
+- [Evidence]
+- [Evidence]
+
+**Missing Assumptions:**
+- [Uncertainty]
+
+---
+
+### 🥉 Prompt #3 — Speculative (Design/Architecture Decision Prompt)
+
+**Confidence Score:** [X/10]
+
+**Reconstructed Prompt:**
+\`\`\`
+[Write a more speculative prompt — 100-200 words]
+\`\`\`
+
+**Supporting Evidence:**
+- [Evidence]
+
+**Missing Assumptions:**
+- [Uncertainty]
+
+---
+
+## 💡 15. Archaeology Insights
+
+[3-5 fascinating insights about this codebase that a developer reading this would find genuinely interesting and surprising — things that reveal the developer's intent, priorities, or evolution of thinking]
+
+---
+
+*Report generated by Prompt Archaeology Engine — AI Codebase Explorer*
+*Confidence methodology: Evidence-based inference from repository structure, naming patterns, code complexity, and architectural decisions.*`,
+        4000
+    );
 };

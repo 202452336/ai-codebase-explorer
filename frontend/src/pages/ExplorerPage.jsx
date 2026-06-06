@@ -6,6 +6,7 @@ import AIPanel from '../components/AIPanel';
 import SearchPanel from '../components/SearchPanel';
 import ChatPanel from '../components/ChatPanel';
 import ReadmePanel from '../components/ReadmePanel';
+import ArchaeologyPanel from '../components/ArchaeologyPanel';
 
 // ── helpers ──────────────────────────────────────────────────────────────────
 
@@ -16,12 +17,7 @@ const safeParse = (v) => {
   catch { return String(v).split(',').map(s => s.trim()).filter(Boolean); }
 };
 
-const scoreFrom = (fileCount) => ({
-  architecture:    Math.round(Math.max(55, 92  - fileCount * 0.25)),
-  maintainability: Math.round(Math.max(50, 90  - fileCount * 0.22)),
-  security:        Math.round(Math.max(58, 84  - fileCount * 0.15)),
-  health:          Math.round(Math.max(60, 88  - fileCount * 0.20)),
-});
+
 
 const TABS = [
   { id: 'overview',      label: 'Overview',      icon: '🏠' },
@@ -31,11 +27,12 @@ const TABS = [
   { id: 'search',        label: 'Search',         icon: '🔍' },
   { id: 'chat',          label: 'Chat',           icon: '💬' },
   { id: 'readme',        label: 'README',         icon: '📄' },
+  { id: 'archaeology',   label: 'Archaeology',    icon: '🏺' },
 ];
 
 // ── sub-pages ─────────────────────────────────────────────────────────────────
 
-function OverviewTab({ repoName, repoSummary, techStack, stats, scores, onNavigate }) {
+function OverviewTab({ repoName, repoSummary, techStack, stats, onNavigate }) {
   const QUICK_ACTIONS = [
     { icon: '📄', label: 'Explain File',     tab: 'explorer' },
     { icon: '🔍', label: 'Semantic Search',  tab: 'search' },
@@ -65,7 +62,7 @@ function OverviewTab({ repoName, repoSummary, techStack, stats, scores, onNaviga
           <div className="ov-stat"><span className="ov-stat-num">{stats.totalFiles}</span><span className="ov-stat-lbl">Files</span></div>
           <div className="ov-stat"><span className="ov-stat-num">{stats.totalFolders}</span><span className="ov-stat-lbl">Folders</span></div>
           <div className="ov-stat"><span className="ov-stat-num">{stats.languages.length}</span><span className="ov-stat-lbl">Languages</span></div>
-          <div className="ov-stat"><span className="ov-stat-num">{scores.health}</span><span className="ov-stat-lbl">Health score</span></div>
+
         </div>
       </div>
 
@@ -106,7 +103,7 @@ function OverviewTab({ repoName, repoSummary, techStack, stats, scores, onNaviga
   );
 }
 
-function ArchitectureTab({ architecture, techStack, stats, scores }) {
+function ArchitectureTab({ architecture, techStack, stats }) {
   // Parse architecture text into sections if it's a string
   const archText = typeof architecture === 'string' ? architecture : JSON.stringify(architecture, null, 2);
 
@@ -127,24 +124,7 @@ function ArchitectureTab({ architecture, techStack, stats, scores }) {
           <pre className="arch-pre">{archText || 'Architecture analysis not yet available. The repository may still be processing.'}</pre>
         </div>
 
-        {/* Scores */}
-        <div className="arch-card">
-          <div className="arch-card-label">Quality Scores</div>
-          {[
-            { label: 'Architecture',    val: scores.architecture },
-            { label: 'Maintainability', val: scores.maintainability },
-            { label: 'Security',        val: scores.security },
-            { label: 'Health',          val: scores.health },
-          ].map(({ label, val }) => (
-            <div key={label} className="score-row">
-              <span className="score-row-label">{label}</span>
-              <div className="score-bar-track">
-                <div className="score-bar-fill" style={{ width: `${val}%`, background: val >= 80 ? 'var(--green)' : val >= 65 ? 'var(--yellow)' : 'var(--red)' }} />
-              </div>
-              <span className="score-row-val">{val}</span>
-            </div>
-          ))}
-        </div>
+
 
         {/* Tech stack */}
         {techStack.length > 0 && (
@@ -185,48 +165,55 @@ function ArchitectureTab({ architecture, techStack, stats, scores }) {
   );
 }
 
-function InsightsTab({ repoSummary, techStack, stats, scores }) {
-  const strengths = [];
-  const risks = [];
-  const recommendations = [];
+function InsightsTab({ repoId }) {
+  const [insights, setInsights] = useState(null);
+  const [loading, setLoading]   = useState(true);
+  const [error, setError]       = useState('');
 
-  if (techStack.length > 0) strengths.push(`Uses ${techStack.slice(0,3).join(', ')} — a modern, well-supported stack`);
-  if (stats.totalFiles < 100) strengths.push('Compact codebase — easier to navigate and maintain');
-  if (stats.languages.length === 1) strengths.push('Single-language codebase reduces cognitive overhead');
-  if (scores.architecture >= 80) strengths.push('Architecture score suggests clean structural separation');
-  if (strengths.length < 3) strengths.push('Clear module separation visible in folder structure');
+  useEffect(() => {
+    api.getInsights(repoId)
+      .then(setInsights)
+      .catch(e => setError(e.message))
+      .finally(() => setLoading(false));
+  }, [repoId]);
 
-  if (stats.totalFiles > 200) risks.push('Large file count may indicate opportunity for modularization');
-  if (stats.languages.length > 4) risks.push('Multiple languages add onboarding complexity');
-  if (scores.security < 70) risks.push('Security score below threshold — review auth and input handling');
-  if (risks.length < 2) risks.push('Review error handling patterns across API boundaries');
+  if (loading) return (
+    <div className="ins-page">
+      <div className="ins-header"><h1 className="page-title">Insights</h1><p className="page-sub">AI is analyzing your codebase…</p></div>
+      <div className="center-msg" style={{marginTop:'60px'}}><span className="spinner lg"/><div style={{marginTop:'16px',color:'var(--text3)'}}>Running real code analysis — this takes ~15 seconds…</div></div>
+    </div>
+  );
 
-  recommendations.push('Add integration tests for critical auth and data flows');
-  recommendations.push('Document environment variable requirements in a central place');
-  if (techStack.includes('PostgreSQL') || techStack.includes('MongoDB')) {
-    recommendations.push('Ensure database queries are parameterized to prevent injection');
-  }
-  recommendations.push('Consider adding a CONTRIBUTING.md for new developers');
+  if (error) return (
+    <div className="ins-page">
+      <div className="ins-header"><h1 className="page-title">Insights</h1></div>
+      <div className="error-msg">Failed to load insights: {error}</div>
+    </div>
+  );
+
+  const scores = insights?.scores || {};
+  const reasons = insights?.scoreReasons || {};
 
   return (
     <div className="ins-page">
       <div className="ins-header">
         <h1 className="page-title">Insights</h1>
-        <p className="page-sub">What is good or bad about this repository</p>
+        <p className="page-sub">Real AI analysis of your codebase — not estimates</p>
       </div>
 
       {/* Score overview */}
       <div className="ins-scores">
         {[
-          { label: 'Security',        val: scores.security,        icon: '🛡' },
-          { label: 'Maintainability', val: scores.maintainability, icon: '🔧' },
-          { label: 'Architecture',    val: scores.architecture,    icon: '🏗' },
-          { label: 'Health',          val: scores.health,          icon: '❤️' },
-        ].map(({ label, val, icon }) => (
-          <div key={label} className="ins-score-card">
+          { label: 'Security',        val: scores.security,        icon: '🛡',  reason: reasons.security },
+          { label: 'Maintainability', val: scores.maintainability, icon: '🔧',  reason: reasons.maintainability },
+          { label: 'Architecture',    val: scores.architecture,    icon: '🏗',  reason: reasons.architecture },
+          { label: 'Health',          val: scores.health,          icon: '❤️', reason: reasons.health },
+        ].map(({ label, val, icon, reason }) => (
+          <div key={label} className="ins-score-card" title={reason || ''}>
             <div className="ins-score-icon">{icon}</div>
-            <div className="ins-score-num" style={{ color: val >= 80 ? 'var(--green)' : val >= 65 ? 'var(--yellow)' : 'var(--red)' }}>{val}</div>
+            <div className="ins-score-num" style={{ color: val >= 80 ? 'var(--green)' : val >= 65 ? 'var(--yellow)' : 'var(--red)' }}>{val ?? '—'}</div>
             <div className="ins-score-label">{label}</div>
+            {reason && <div className="ins-score-reason">{reason}</div>}
           </div>
         ))}
       </div>
@@ -234,18 +221,28 @@ function InsightsTab({ repoSummary, techStack, stats, scores }) {
       <div className="ins-grid">
         <div className="ins-card ins-strengths">
           <div className="ins-card-title">✅ Strengths</div>
-          {strengths.map((s, i) => <div key={i} className="ins-item ins-item-green">{s}</div>)}
+          {(insights?.strengths || []).map((s, i) => <div key={i} className="ins-item ins-item-green">{s}</div>)}
         </div>
-
         <div className="ins-card ins-risks">
           <div className="ins-card-title">⚠️ Risks</div>
-          {risks.map((r, i) => <div key={i} className="ins-item ins-item-yellow">{r}</div>)}
+          {(insights?.risks || []).map((r, i) => <div key={i} className="ins-item ins-item-yellow">{r}</div>)}
         </div>
-
         <div className="ins-card ins-recs">
           <div className="ins-card-title">💡 Recommendations</div>
-          {recommendations.map((r, i) => <div key={i} className="ins-item ins-item-blue">{r}</div>)}
+          {(insights?.recommendations || []).map((r, i) => <div key={i} className="ins-item ins-item-blue">{r}</div>)}
         </div>
+        {insights?.securityFindings?.length > 0 && (
+          <div className="ins-card">
+            <div className="ins-card-title">🔐 Security Findings</div>
+            {insights.securityFindings.map((s, i) => <div key={i} className="ins-item ins-item-yellow">{s}</div>)}
+          </div>
+        )}
+        {insights?.codeSmells?.length > 0 && (
+          <div className="ins-card">
+            <div className="ins-card-title">🧹 Code Smells</div>
+            {insights.codeSmells.map((s, i) => <div key={i} className="ins-item ins-item-yellow">{s}</div>)}
+          </div>
+        )}
       </div>
     </div>
   );
@@ -335,7 +332,7 @@ export default function ExplorerPage({ repoId, repoName, onBack, user, onLogout 
     };
   }, [files]);
 
-  const scores = useMemo(() => scoreFrom(files.length), [files.length]);
+
   const techStack = useMemo(() => safeParse(archData?.tech_stack), [archData]);
   const repoSummary = archData?.summary || '';
   const architecture = archData?.architecture || '';
@@ -386,7 +383,6 @@ export default function ExplorerPage({ repoId, repoName, onBack, user, onLogout 
                   repoSummary={repoSummary}
                   techStack={techStack}
                   stats={stats}
-                  scores={scores}
                   onNavigate={handleNavigate}
                 />
               </div>
@@ -396,12 +392,12 @@ export default function ExplorerPage({ repoId, repoName, onBack, user, onLogout 
             )}
             {tab === 'architecture' && (
               <div className="shell-scroll">
-                <ArchitectureTab architecture={architecture} techStack={techStack} stats={stats} scores={scores} />
+                <ArchitectureTab architecture={architecture} techStack={techStack} stats={stats} />
               </div>
             )}
             {tab === 'insights' && (
               <div className="shell-scroll">
-                <InsightsTab repoSummary={repoSummary} techStack={techStack} stats={stats} scores={scores} />
+                <InsightsTab repoId={repoId} />
               </div>
             )}
             {tab === 'search' && (
@@ -417,6 +413,11 @@ export default function ExplorerPage({ repoId, repoName, onBack, user, onLogout 
             {tab === 'readme' && (
               <div className="shell-full">
                 <ReadmePanel repoId={repoId} repoName={repoName} />
+              </div>
+            )}
+            {tab === 'archaeology' && (
+              <div className="shell-scroll">
+                <ArchaeologyPanel repoId={repoId} repoName={repoName} />
               </div>
             )}
           </>

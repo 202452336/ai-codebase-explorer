@@ -16,6 +16,7 @@
 
 **Paste any GitHub URL → AI clones, reads every file, maps architecture, and lets you explore with natural language.**
 
+[🐛 Report Bug](https://github.com/202452336/ai-codebase-explorer/issues) · [✨ Request Feature](https://github.com/202452336/ai-codebase-explorer/issues)
 
 <br />
 
@@ -27,15 +28,15 @@
 
 | Overview | Explorer |
 |----------|----------|
-| ![Overview](https://placehold.co/600x340/0d0d0f/7c6aff?text=Repository+Overview) | ![Explorer](https://placehold.co/600x340/0d0d0f/00d4ff?text=File+Explorer) |
+| ![Overview](https://placehold.co/600x340/030712/00E5FF?text=Repository+Overview) | ![Explorer](https://placehold.co/600x340/030712/7C4DFF?text=File+Explorer) |
 
 | AI Chat | Semantic Search |
 |---------|----------------|
-| ![Chat](https://placehold.co/600x340/0d0d0f/00ff88?text=AI+Chat+Interface) | ![Search](https://placehold.co/600x340/0d0d0f/ff6eb4?text=Semantic+Search) |
+| ![Chat](https://placehold.co/600x340/030712/00FF9D?text=AI+Chat+Interface) | ![Search](https://placehold.co/600x340/030712/00E5FF?text=Semantic+Search) |
 
-| Architecture View | README Generator |
-|-------------------|-----------------|
-| ![Architecture](https://placehold.co/600x340/0d0d0f/ffd93d?text=Architecture+View) | ![README](https://placehold.co/600x340/0d0d0f/ff8c42?text=README+Generator) |
+| Architecture View | Prompt Archaeology Engine |
+|-------------------|--------------------------|
+| ![Architecture](https://placehold.co/600x340/030712/7C4DFF?text=Architecture+View) | ![Archaeology](https://placehold.co/600x340/030712/F59E0B?text=Prompt+Archaeology+Engine) |
 
 ---
 
@@ -62,30 +63,57 @@ It's like having a senior engineer who has read every line of code sitting next 
 | 💬 **Repo Chat** | Full conversational AI grounded in actual source code with source citations |
 | 📝 **README Generator** | Auto-generates production-quality README.md from actual codebase content |
 | 🏗️ **Architecture View** | Visualizes layers, data flow, design patterns, and tech stack |
-| 📊 **Insights Dashboard** | Security score, maintainability score, strengths, risks, and recommendations |
+| 📊 **Insights Dashboard** | Real AI-analyzed security score, maintainability score, strengths, risks, and recommendations |
+| 🏺 **Prompt Archaeology Engine** | Reverse-engineers the original vision, PRD, blueprint, and AI prompts that likely guided the creation of any repository |
 
 ### 🚀 Advanced AI Features
 
 | Feature | Description |
 |---------|-------------|
 | 🧬 **RAG Pipeline** | Retrieval-Augmented Generation for context-accurate answers |
-| 📦 **Vector Embeddings** | Voyage AI `voyage-code-3` — purpose-built for code semantic understanding |
+| 📦 **Vector Embeddings** | Nomic AI `nomic-embed-text-v1.5` — semantic code understanding |
 | 🗂️ **Smart Chunking** | Overlap-aware text chunking preserves context across file boundaries |
 | 📎 **Source Citations** | Every AI answer includes references to the exact files used |
 | 🔁 **Cross-file Analysis** | AI understands how files relate to each other, not just individually |
 | 🛡️ **Security Detection** | Highlights auth patterns, input validation issues, and risk areas |
 | 🏷️ **Tech Stack Detection** | Automatically identifies React, Express, PostgreSQL, Docker, and 50+ more |
+| 🔍 **Prompt Reconstruction** | Generates 3 reconstructed AI prompts with confidence scores and supporting evidence |
+| 📋 **PRD Generation** | Reconstructs the full Product Requirements Document from code evidence |
+| 🗺️ **Roadmap Inference** | Infers the original MVP → production roadmap from repository evolution patterns |
 
 ### 🎨 Developer Experience
 
 | Feature | Description |
 |---------|-------------|
-| 🌙 **Dark Theme** | Premium dark UI inspired by Linear, Vercel, and Cursor |
+| 🌙 **Dark Theme** | Premium cyberpunk AI dark UI — `#030712` base with cyan/purple neon accents |
 | ⚡ **Background Processing** | Repo indexing happens async with live status updates |
 | 📱 **Responsive** | Works on desktop and mobile |
 | 🔐 **Firebase Auth** | Google Sign-In + Email/Password authentication |
 | 💾 **Recent Repos** | Quick access to previously analyzed repositories |
 | 🖼️ **Markdown Rendering** | AI responses render with full markdown, tables, and code blocks |
+| 💾 **Cached Results** | Archaeology, insights, and architecture results cached after first run |
+
+---
+
+## 🏺 Prompt Archaeology Engine
+
+The most unique feature of this project. It reads your entire repository and reverse-engineers:
+
+- The **original product idea** that inspired the project
+- The **problem being solved** with evidence from actual code
+- The **target users** inferred from UX and API design decisions
+- A fully reconstructed **PRD (Product Requirements Document)**
+- The **development phases** — what was built first, second, and third
+- **Tech stack rationale** — *why* each technology was chosen
+- **Database and API design decisions**
+- The **original MVP → production roadmap**
+- **3 reconstructed AI prompts** the developer likely used, each with:
+  - Confidence score (1-10)
+  - Supporting evidence from specific files
+  - Missing assumptions honestly noted
+- **Archaeology insights** — surprising findings about developer intent
+
+> *No other developer tool does this. It's like carbon dating for code.*
 
 ---
 
@@ -96,11 +124,11 @@ graph TD
     A[👤 User] -->|GitHub URL| B[React Frontend]
     B -->|REST API + Firebase JWT| C[Express Backend]
     C -->|Clone & Parse| D[GitHub Service]
-    D -->|File Contents| E[AI Service - Groq/Llama]
+    D -->|File Contents| E[AI Service - Groq/Llama 3.3 70B]
     D -->|File Chunks| F[Embedding Service]
-    F -->|voyage-code-3| G[Voyage AI API]
+    F -->|nomic-embed-text-v1.5| G[Nomic AI API]
     G -->|768-dim Vectors| H[(PostgreSQL + pgvector)]
-    E -->|Architecture JSON| H
+    E -->|Architecture + Insights + Archaeology| H
     B -->|Search Query| C
     C -->|Vector Similarity| H
     H -->|Top-K Chunks| E
@@ -108,26 +136,27 @@ graph TD
 ```
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│                     React Frontend                       │
-│  Overview │ Explorer │ Architecture │ Insights │ Chat    │
-└──────────────────────┬──────────────────────────────────┘
-                       │ HTTPS + Firebase JWT
-┌──────────────────────▼──────────────────────────────────┐
-│                   Express.js API                         │
-│  /repos  │  /explain  │  /search  │  /chat  │  /readme  │
-└────┬─────────────┬───────────────────────────────────────┘
-     │             │
-┌────▼───┐   ┌─────▼──────────────────────────────────────┐
-│ GitHub  │   │              AI Pipeline                    │
-│ Service │   │  Groq (Llama 3.3 70B) + Voyage Embeddings  │
-│ Clone   │   └─────────────────┬──────────────────────────┘
-│ Parse   │                     │
-└────┬────┘             ┌───────▼───────┐
-     │                  │  PostgreSQL   │
-     └──────────────────►  + pgvector   │
-                        │  (Supabase)   │
-                        └───────────────┘
+┌──────────────────────────────────────────────────────────────────┐
+│                        React Frontend                             │
+│  Overview │ Explorer │ Architecture │ Insights │ Search │ Chat   │
+│           │          │              │          │        │        │
+│                    🏺 Prompt Archaeology Engine                   │
+└─────────────────────────┬────────────────────────────────────────┘
+                          │ HTTPS + Firebase JWT
+┌─────────────────────────▼────────────────────────────────────────┐
+│                      Express.js API                               │
+│  /clone │ /explain │ /search │ /chat │ /readme │ /archaeology     │
+└────┬──────────────┬─────────────────────────────────────────────┘
+     │              │
+┌────▼────┐   ┌─────▼─────────────────────────────────────────────┐
+│ GitHub  │   │                  AI Pipeline                        │
+│ Service │   │  Groq Llama 3.3 70B + Nomic AI Embeddings          │
+│ Clone   │   │  Explain │ Chat │ README │ Architecture             │
+│ Parse   │   │  Insights │ Prompt Archaeology Engine               │
+└────┬────┘   └──────────────────┬────────────────────────────────┘
+     │                           │
+     └───────────────────────────►  PostgreSQL + pgvector (Supabase)
+                                     repos │ files │ embeddings
 ```
 
 ---
@@ -140,7 +169,7 @@ graph TD
 | React | UI framework | 19.x |
 | Vite | Build tool & dev server | 8.x |
 | Firebase | Authentication | 12.x |
-| Custom CSS | Styling (no framework) | — |
+| Custom CSS | Full design system (no framework) | — |
 | Highlight.js | Syntax highlighting | CDN |
 
 ### Backend
@@ -155,8 +184,8 @@ graph TD
 ### AI & Embeddings
 | Technology | Purpose |
 |-----------|---------|
-| Groq (Llama 3.3 70B) | LLM for chat, explain, readme, architecture |
-| Voyage AI voyage-code-3 | Code-optimized vector embeddings |
+| Groq (Llama 3.3 70B) | LLM for chat, explain, readme, architecture, insights, archaeology |
+| Nomic AI nomic-embed-text-v1.5 | Vector embeddings for semantic search |
 | pgvector | Vector similarity search in PostgreSQL |
 | RAG Pipeline | Retrieval-augmented generation |
 
@@ -165,7 +194,7 @@ graph TD
 |-----------|---------|
 | Supabase | PostgreSQL + pgvector hosting |
 | Firebase Auth | User authentication |
-| GitHub API | Repository cloning |
+| GitHub | Repository cloning via simple-git |
 
 ---
 
@@ -177,48 +206,55 @@ ai-codebase-explorer/
 ├── backend/
 │   ├── src/
 │   │   ├── config/
-│   │   │   ├── db.js              # PostgreSQL connection pool
-│   │   │   └── firebase.js        # Firebase Admin SDK setup
+│   │   │   ├── db.js                  # PostgreSQL connection pool
+│   │   │   └── firebase.js            # Firebase Admin SDK setup
 │   │   ├── controllers/
-│   │   │   └── repoController.js  # All API route handlers
+│   │   │   └── repoController.js      # All API route handlers
 │   │   ├── middleware/
-│   │   │   └── authMiddleware.js  # Firebase JWT verification
+│   │   │   └── authMiddleware.js      # Firebase JWT verification
 │   │   ├── migrations/
-│   │   │   └── schema.sql         # Database schema (pgvector)
+│   │   │   └── schema.sql             # Database schema (pgvector)
 │   │   ├── routes/
-│   │   │   └── repoRoutes.js      # Express route definitions
+│   │   │   └── repoRoutes.js          # Express route definitions
 │   │   ├── services/
-│   │   │   ├── aiService.js       # Groq LLM: explain, chat, readme, arch
-│   │   │   ├── embeddingService.js # Voyage AI embeddings + vector search
-│   │   │   └── githubService.js   # Clone, parse, detect tech stack
-│   │   └── index.js               # Express server entry point
+│   │   │   ├── aiService.js           # Groq LLM: explain, chat, readme,
+│   │   │   │                          #   architecture, insights, archaeology
+│   │   │   ├── embeddingService.js    # Nomic AI embeddings + vector search
+│   │   │   └── githubService.js       # Clone, parse, detect tech stack
+│   │   └── index.js                   # Express server entry point
+│   ├── firebase-service-account.json  # Firebase Admin credentials (gitignored)
+│   ├── .env                           # Environment variables (gitignored)
 │   ├── .env.example
 │   └── package.json
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── components/
-│   │   │   ├── AIPanel.jsx        # File intelligence sidebar
-│   │   │   ├── ChatPanel.jsx      # Chat UI with markdown renderer
-│   │   │   ├── CodeViewer.jsx     # Syntax-highlighted code viewer
-│   │   │   ├── FileTree.jsx       # VS Code-style file tree
-│   │   │   ├── ReadmePanel.jsx    # README generator & preview
-│   │   │   └── SearchPanel.jsx    # Semantic search UI
+│   │   │   ├── AIPanel.jsx            # File intelligence sidebar
+│   │   │   ├── ArchaeologyPanel.jsx   # 🏺 Prompt Archaeology Engine UI
+│   │   │   ├── ChatPanel.jsx          # Chat UI with markdown renderer
+│   │   │   ├── CodeViewer.jsx         # Syntax-highlighted code viewer
+│   │   │   ├── FileTree.jsx           # VS Code-style file tree
+│   │   │   ├── ReadmePanel.jsx        # README generator & preview
+│   │   │   └── SearchPanel.jsx        # Semantic search UI
 │   │   ├── context/
-│   │   │   └── AuthContext.jsx    # Firebase auth state
+│   │   │   └── AuthContext.jsx        # Firebase auth state
 │   │   ├── pages/
-│   │   │   ├── HomePage.jsx       # Landing + repo URL input
-│   │   │   ├── LoginPage.jsx      # Split-screen auth page
-│   │   │   ├── ProcessingPage.jsx # Repo indexing progress
-│   │   │   └── ExplorerPage.jsx   # Main 7-tab explorer
+│   │   │   ├── HomePage.jsx           # Landing + repo URL input
+│   │   │   ├── LoginPage.jsx          # Split-screen auth page
+│   │   │   ├── ProcessingPage.jsx     # Repo indexing progress
+│   │   │   └── ExplorerPage.jsx       # Main 8-tab explorer
 │   │   ├── services/
-│   │   │   ├── api.js             # All backend API calls
-│   │   │   └── firebase.js        # Firebase client config
-│   │   ├── App.jsx                # Root component + routing
-│   │   ├── index.css              # Full design system CSS
-│   │   └── main.jsx               # React entry point
+│   │   │   ├── api.js                 # All backend API calls
+│   │   │   └── firebase.js            # Firebase client config
+│   │   ├── App.jsx                    # Root component + routing
+│   │   ├── index.css                  # Full design system CSS
+│   │   └── main.jsx                   # React entry point
+│   ├── .env                           # Firebase config (gitignored)
+│   ├── .env.example
 │   └── package.json
 │
+├── .gitignore
 └── README.md
 ```
 
@@ -231,25 +267,29 @@ ai-codebase-explorer/
          ↓
 2. Backend clones repo with simple-git
          ↓
-3. All files are read, parsed, and stored in PostgreSQL
+3. All files read, parsed, stored in PostgreSQL
          ↓
 4. Tech stack detected from package.json, requirements.txt, etc.
          ↓
-5. Architecture analyzed by Groq Llama 3.3 70B
+5. Architecture analyzed by Groq Llama 3.3 70B → cached
          ↓
 6. Files chunked (800 char chunks, 100 char overlap)
          ↓
-7. Voyage AI voyage-code-3 generates 1024-dim vectors per chunk
+7. Nomic AI generates 768-dim vectors per chunk
          ↓
-8. Vectors stored in PostgreSQL via pgvector
+8. Vectors bulk-inserted into PostgreSQL via pgvector
          ↓
 9. Repo status → "ready" — user can now explore
          ↓
 10. User asks question → query embedded → top-K chunks retrieved
          ↓
-11. Chunks + question sent to Groq → structured markdown answer returned
+11. Chunks + question sent to Groq → structured markdown answer
          ↓
 12. Response rendered with full markdown, tables, code blocks
+         ↓
+13. [Optional] User runs Prompt Archaeology Engine →
+    AI reads all files → reconstructs PRD, blueprint,
+    development phases, and 3 AI prompts with confidence scores
 ```
 
 ---
@@ -259,10 +299,10 @@ ai-codebase-explorer/
 ### Prerequisites
 
 - Node.js 18+
-- PostgreSQL database with pgvector extension (Supabase free tier works perfectly)
+- PostgreSQL with pgvector extension (Supabase free tier works perfectly)
 - Firebase project (for authentication)
-- Groq API key (free at console.groq.com)
-- Voyage AI API key (free at dash.voyageai.com)
+- Groq API key — free at [console.groq.com](https://console.groq.com)
+- Nomic AI API key — free at [atlas.nomic.ai](https://atlas.nomic.ai)
 
 ### 1. Clone the repository
 
@@ -273,7 +313,7 @@ cd ai-codebase-explorer
 
 ### 2. Set up the database
 
-Run the schema in your PostgreSQL database (Supabase SQL editor):
+Run in your Supabase SQL editor:
 
 ```sql
 CREATE EXTENSION IF NOT EXISTS vector;
@@ -286,6 +326,8 @@ CREATE TABLE repos (
     tech_stack JSONB DEFAULT '[]',
     summary TEXT,
     architecture TEXT,
+    insights JSONB,
+    archaeology TEXT,
     created_at TIMESTAMPTZ DEFAULT NOW(),
     updated_at TIMESTAMPTZ DEFAULT NOW()
 );
@@ -305,7 +347,7 @@ CREATE TABLE embeddings (
     file_id INTEGER REFERENCES files(id) ON DELETE CASCADE,
     chunk_text TEXT NOT NULL,
     chunk_index INTEGER DEFAULT 0,
-    embedding vector(1024),
+    embedding vector(768),
     created_at TIMESTAMPTZ DEFAULT NOW()
 );
 
@@ -320,7 +362,7 @@ CREATE INDEX embeddings_vector_idx ON embeddings
 cd backend
 npm install
 cp .env.example .env
-# Edit .env with your values
+# Fill in your values
 npm run dev
 ```
 
@@ -330,7 +372,7 @@ npm run dev
 cd frontend
 npm install
 cp .env.example .env
-# Edit .env with your Firebase config
+# Fill in your Firebase config
 npm run dev
 ```
 
@@ -351,13 +393,12 @@ DATABASE_URL=postgresql://user:password@host:5432/postgres
 
 # AI Keys
 GROQ_API_KEY=your_groq_key          # console.groq.com — free
-VOYAGE_API_KEY=your_voyage_key      # dash.voyageai.com — free
-GEMINI_API_KEY=your_gemini_key      # aistudio.google.com — free
+NOMIC_API_KEY=your_nomic_key        # atlas.nomic.ai — free
 
-# Firebase Admin (for auth verification)
+# Firebase Admin
 FIREBASE_SERVICE_ACCOUNT=./firebase-service-account.json
 
-# Temp path for cloning repos
+# Temp clone path
 REPOS_CLONE_PATH=/tmp/ai-explorer-repos
 ```
 
@@ -390,6 +431,21 @@ All routes require `Authorization: Bearer <firebase-id-token>` header.
 | `POST` | `/api/repos/:id/chat` | Chat with the repository |
 | `POST` | `/api/repos/:id/readme` | Generate a README.md |
 | `GET` | `/api/repos/:id/architecture` | Get architecture analysis |
+| `GET` | `/api/repos/:id/insights` | Real AI code quality scores + findings |
+| `GET` | `/api/repos/:id/archaeology` | 🏺 Run Prompt Archaeology Engine |
+
+### Example: Prompt Archaeology
+
+```bash
+curl -X GET http://localhost:5000/api/repos/{repoId}/archaeology \
+  -H "Authorization: Bearer <token>"
+```
+
+```json
+{
+  "report": "# 🏺 Prompt Archaeology Report\n\n## 🧠 1. Original Product Idea\n\n..."
+}
+```
 
 ### Example: Chat with a repo
 
@@ -402,7 +458,7 @@ curl -X POST http://localhost:5000/api/repos/{repoId}/chat \
 
 ```json
 {
-  "answer": "## Answer\n\n### Quick Summary\nAuthentication uses JWT tokens via Passport.js...",
+  "answer": "## Answer\n\n### Quick Summary\n...",
   "sourcesUsed": ["src/middleware/auth.js", "src/config/passport.js"]
 }
 ```
@@ -411,21 +467,21 @@ curl -X POST http://localhost:5000/api/repos/{repoId}/chat \
 
 ## ⚡ Performance
 
-- **Bulk DB inserts** — all files inserted in a single query (not one per file)
-- **Batch embeddings** — up to 128 chunks per API request
+- **Bulk DB inserts** — all files inserted in a single query
+- **Batch embeddings** — up to 100 chunks per API request
 - **pgvector IVFFlat index** — sub-millisecond vector similarity search
 - **Background processing** — repo indexing is async, frontend polls for status
-- **Chunking strategy** — 800-char chunks with 100-char overlap for context preservation
+- **Chunking strategy** — 800-char chunks with 100-char overlap
+- **Result caching** — archaeology, insights, architecture cached after first run
 
 ---
 
 ## 🛡️ Security
 
 - All API routes protected with Firebase JWT middleware
-- `.env` files excluded from git via `.gitignore`
-- Service account key excluded from git
+- `.env` files and service account key excluded from git
 - Input validation on all endpoints
-- Parameterized SQL queries (no injection risk)
+- Parameterized SQL queries — no injection risk
 - CORS restricted to frontend URL only
 
 ---
@@ -455,48 +511,32 @@ curl -X POST http://localhost:5000/api/repos/{repoId}/chat \
 | 🎓 **Student** | Learn how real production codebases are structured |
 | 🧪 **Code Reviewer** | Get AI-powered insights before reviewing a PR |
 | 📄 **Documentation Writer** | Auto-generate accurate technical documentation |
+| 🏺 **AI Researcher** | Reverse-engineer development intent and prompt patterns |
 
 ---
 
 ## 🏆 Why Recruiters Love This Project
 
-This project demonstrates the full stack of modern software engineering:
-
 | Skill | Evidence |
 |-------|---------|
-| **Full-Stack Engineering** | React frontend + Node.js/Express backend + PostgreSQL database |
+| **Full-Stack Engineering** | React 19 + Node.js/Express + PostgreSQL + Firebase |
 | **AI/ML Integration** | RAG pipeline, vector embeddings, LLM prompt engineering |
-| **System Design** | Async background processing, polling, bulk DB operations |
+| **Novel AI Feature** | Prompt Archaeology Engine — nothing like this exists publicly |
+| **System Design** | Async processing, polling, bulk DB operations, caching |
 | **Developer Tooling** | Solves a real problem developers face daily |
 | **Security** | JWT auth, parameterized queries, env var management |
+| **Product Thinking** | 8-tab UX designed around developer cognitive load |
 | **Code Quality** | Clean architecture, separation of concerns, modular services |
-| **Product Thinking** | 7-tab UX designed around developer cognitive load |
 
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Here's how to get started:
-
 1. Fork the repository
-2. Create your feature branch
-   ```bash
-   git checkout -b feature/amazing-feature
-   ```
-3. Commit your changes using conventional commits
-   ```bash
-   git commit -m "feat: add multi-repo chat support"
-   ```
-4. Push to the branch
-   ```bash
-   git push origin feature/amazing-feature
-   ```
+2. Create your feature branch: `git checkout -b feature/amazing-feature`
+3. Commit: `git commit -m "feat: add amazing feature"`
+4. Push: `git push origin feature/amazing-feature`
 5. Open a Pull Request
-
-Please make sure your PR:
-- Includes a clear description of what changed and why
-- Doesn't break existing functionality
-- Follows the existing code style
 
 ---
 
@@ -509,6 +549,10 @@ Distributed under the MIT License. See [LICENSE](LICENSE) for more information.
 ## 👤 Author
 
 Built by **Thuppathi Nikitha**
+
+[![GitHub](https://img.shields.io/badge/GitHub-202452336-181717?style=for-the-badge&logo=github)](https://github.com/202452336)
+[![LinkedIn](https://img.shields.io/badge/LinkedIn-Connect-0A66C2?style=for-the-badge&logo=linkedin)](https://linkedin.com)
+[![Portfolio](https://img.shields.io/badge/Portfolio-Visit-7C6AFF?style=for-the-badge)](#)
 
 ---
 

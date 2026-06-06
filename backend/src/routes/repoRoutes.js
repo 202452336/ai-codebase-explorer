@@ -1,5 +1,4 @@
 import express from 'express';
-import { requireAuth } from '../middleware/authMiddleware.js';
 import {
     cloneRepo,
     getFiles,
@@ -9,10 +8,15 @@ import {
     chatWithRepo,
     generateReadme,
     getRepoStatus,
-    getArchitecture
+    getArchitecture,
+    getInsights,
+    getArchaeology
 } from '../controllers/repoController.js';
+import { requireAuth } from '../middleware/authMiddleware.js';
 
 const router = express.Router();
+
+// All routes require Firebase auth
 router.use(requireAuth);
 
 // Repo lifecycle
@@ -24,10 +28,12 @@ router.get('/:repoId/files', getFiles);
 router.get('/:repoId/files/:fileId', getFileContent);
 
 // AI features
-router.post('/:repoId/explain', explainFile); // POST { fileId } or { filePath }
-router.post('/:repoId/search', searchRepo); // POST { query, topK? }
-router.post('/:repoId/chat', chatWithRepo); // POST { message }
-router.post('/:repoId/readme', generateReadme); // POST {}
+router.post('/:repoId/explain', explainFile);
+router.post('/:repoId/search', searchRepo);
+router.post('/:repoId/chat', chatWithRepo);
+router.post('/:repoId/readme', generateReadme);
 router.get('/:repoId/architecture', getArchitecture);
+router.get('/:repoId/insights', getInsights);
+router.get('/:repoId/archaeology', getArchaeology);
 
 export default router;

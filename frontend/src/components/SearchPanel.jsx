@@ -80,19 +80,17 @@ export default function SearchPanel({ repoId, initialQuery = '' }) {
                 <div className="res-hdr" onClick={() => setExpanded(p => ({ ...p, [i]: !p[i] }))}>
                   <div className="res-file">
                     <span>📄</span>
-                    {/* backend returns result.path not result.filePath */}
-                    <span className="res-path">{result.path || result.filePath}</span>
+                    <span className="res-path">{result.filePath || result.path}</span>
                     <span className="res-lang">{result.language}</span>
                   </div>
                   {result.similarity != null && (
-                    <span className="res-pct">{Math.round(result.similarity * 100)}% match</span>
+                    <span className="res-pct">{Math.round(parseFloat(result.similarity) * 100)}% match</span>
                   )}
                   <span className="res-chevron">{expanded[i] ? '▲' : '▼'}</span>
                 </div>
                 {expanded[i] && (
                   <div className="res-chunks">
-                    {/* backend returns snippet, not chunks array */}
-                    <pre className="chunk">{result.snippet || result.chunks?.[0]?.text || '(no preview)'}</pre>
+                    <pre className="chunk">{result.chunks?.[0]?.text || result.snippet || '(no preview)'}</pre>
                   </div>
                 )}
               </div>
