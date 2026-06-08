@@ -1,9 +1,9 @@
-const BASE = 'http://localhost:5000/api';
+const BASE = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 
 let _getToken = null;
 export const setTokenProvider = (fn) => { _getToken = fn; };
 
-const req = async(method, path, body) => {
+const req = async (method, path, body) => {
     const headers = { 'Content-Type': 'application/json' };
     if (_getToken) {
         const token = await _getToken();
@@ -20,17 +20,17 @@ const req = async(method, path, body) => {
 };
 
 export const api = {
-    cloneRepo: (githubUrl) => req('POST', '/repos/clone', { githubUrl }),
-    getStatus: (id) => req('GET', `/repos/${id}/status`),
-    getFiles: (id) => req('GET', `/repos/${id}/files`),
-    getFileContent: (id, fid) => req('GET', `/repos/${id}/files/${fid}`),
-    explainFile: (id, fid) => req('POST', `/repos/${id}/explain`, { fileId: fid }),
-    search: (id, query) => req('POST', `/repos/${id}/search`, { query }),
-    chat: (id, msg) => req('POST', `/repos/${id}/chat`, { message: msg }),
-    generateReadme: (id) => req('POST', `/repos/${id}/readme`, {}),
-    getArchitecture: (id) => req('GET', `/repos/${id}/architecture`),
+    cloneRepo:       (githubUrl) => req('POST', '/repos/clone', { githubUrl }),
+    getStatus:       (id)        => req('GET',  `/repos/${id}/status`),
+    getFiles:        (id)        => req('GET',  `/repos/${id}/files`),
+    getFileContent:  (id, fid)   => req('GET',  `/repos/${id}/files/${fid}`),
+    explainFile:     (id, fid)   => req('POST', `/repos/${id}/explain`, { fileId: fid }),
+    search:          (id, query) => req('POST', `/repos/${id}/search`, { query }),
+    chat:            (id, msg)   => req('POST', `/repos/${id}/chat`, { message: msg }),
+    generateReadme:  (id)        => req('POST', `/repos/${id}/readme`, {}),
+    getArchitecture: (id)        => req('GET',  `/repos/${id}/architecture`),
     // Maps to architecture endpoint (same data, different page use)
-    getAnalysis: (id) => req('GET', `/repos/${id}/architecture`),
-    getInsights: (id) => req('GET', `/repos/${id}/insights`),
-    getArchaeology: (id) => req('GET', `/repos/${id}/archaeology`),
+    getAnalysis:     (id)        => req('GET',  `/repos/${id}/architecture`),
+    getInsights:     (id)        => req('GET',  `/repos/${id}/insights`),
+    getArchaeology:  (id)        => req('GET',  `/repos/${id}/archaeology`),
 };
